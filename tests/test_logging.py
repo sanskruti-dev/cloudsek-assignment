@@ -20,7 +20,7 @@ def test_json_formatter_emits_serializable_payload() -> None:
         exc_info=None,
     )
     record.custom_field = {"foo": "bar"}
-    record.unserialisable = object()  # falls back to repr
+    record.unserialisable = object() 
 
     payload = json.loads(formatter.format(record))
 

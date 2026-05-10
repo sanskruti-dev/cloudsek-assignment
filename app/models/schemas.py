@@ -22,8 +22,6 @@ class MetadataStatus(StrEnum):
 
 
 class CookieRecord(BaseModel):
-    # `populate_by_name` lets the document round-trip through Mongo (which
-    # stores the field name) and still accept the camelCase alias from clients.
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
 
     name: str

@@ -43,7 +43,7 @@ class BackgroundTaskScheduler:
     ) -> None:
         try:
             await coro_factory()
-        except Exception:  # pragma: no cover - defensive log-and-swallow
+        except Exception: 
             logger.exception("background_task.failed", extra={"task": name})
 
     async def drain(self, timeout: float = 30.0) -> None:

@@ -1,6 +1,4 @@
 #!/usr/bin/env bash
-# Stops the API + local mongod started outside Docker.
-# Pairs with the manual `mongod --fork` + `uvicorn` flow used during development.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

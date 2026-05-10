@@ -77,7 +77,6 @@ class MetadataService:
         self._fetcher = fetcher
         self._schedule = schedule
 
-    # -- POST ----------------------------------------------------------------
     async def collect_now(self, raw_url: str) -> MetadataRecord:
         parsed = self._parse(raw_url)
         try:
@@ -99,7 +98,6 @@ class MetadataService:
         )
         return stored
 
-    # -- GET -----------------------------------------------------------------
     async def get_or_schedule(self, raw_url: str) -> tuple[MetadataRecord, bool]:
         """Return ``(record, served_from_cache)``.
 
@@ -118,8 +116,6 @@ class MetadataService:
         )
 
         if just_created or record.status == MetadataStatus.PENDING:
-            # Only the inserting caller schedules a worker. If a previous
-            # caller already did, we just return the pending record.
             if just_created:
                 self._schedule(
                     lambda: self._collect_in_background(parsed),
@@ -129,13 +125,12 @@ class MetadataService:
 
         return record, True
 
-    # -- internals -----------------------------------------------------------
     def _parse(self, raw_url: str) -> ParsedURL:
         try:
             return normalize_url(raw_url, allowed_schemes=self._settings.allowed_schemes)
         except InvalidURLError:
             raise
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc: 
             raise InvalidURLError(f"Could not parse URL: {exc}") from exc
 
     async def _collect_in_background(self, parsed: ParsedURL) -> None:
@@ -147,7 +142,7 @@ class MetadataService:
         except FetchFailure as exc:
             await self._record_failure(parsed, exc)
             return
-        except Exception as exc:  # pragma: no cover - last-resort safety net
+        except Exception as exc: 
             logger.exception(
                 "metadata.worker.unexpected_error",
                 extra={"normalized_url": parsed.normalized},
@@ -177,8 +172,6 @@ class MetadataService:
     async def _record_failure(
         self, parsed: ParsedURL, exc: FetchFailure
     ) -> None:
-        # The POST path never reserves a placeholder, so make sure one exists
-        # before flipping it to failed.
         await self._repo.reserve_pending(
             url=parsed.original, normalized_url=parsed.normalized
         )

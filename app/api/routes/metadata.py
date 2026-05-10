@@ -49,7 +49,7 @@ async def create_metadata(
 
 @router.get(
     "",
-    response_model=MetadataRecord | MetadataAcceptedResponse,  # type: ignore[arg-type]
+    response_model=MetadataRecord | MetadataAcceptedResponse,
     responses={
         200: {"description": "Cached metadata returned"},
         202: {
@@ -75,8 +75,6 @@ async def read_metadata(
         return record
 
     if served_from_cache and record.status == MetadataStatus.FAILED:
-        # The previous fetch attempt failed. We answer 200 because the inventory
-        # request itself succeeded; the failure detail lives in `error`.
         response.status_code = status.HTTP_200_OK
         return record
 

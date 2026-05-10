@@ -104,7 +104,6 @@ def test_get_cache_miss_returns_202_and_schedules_worker(
     assert body["status"] == "pending"
     assert body["normalized_url"] == "https://miss.example/"
 
-    # Drain worker, then re-issue: should now be complete.
     scheduler: BackgroundTaskScheduler = app.state.scheduler
     asyncio.get_event_loop().run_until_complete(scheduler.drain(timeout=5.0))
 

@@ -45,8 +45,6 @@ class FetchResult:
 
 
 def _headers_to_dict(headers: httpx.Headers) -> dict[str, str]:
-    # Repeated headers are joined with ", " (RFC 7230 §3.2.2). Keys are
-    # lower-cased and sorted so two equal responses produce equal documents.
     bucket: dict[str, list[str]] = {}
     for key, value in headers.multi_items():
         bucket.setdefault(key, []).append(value)
@@ -77,7 +75,7 @@ def _parse_set_cookie(values: Iterable[str]) -> list[CookieRecord]:
                         httpOnly=bool(morsel["httponly"]),
                     )
                 )
-        except Exception as exc:  # pragma: no cover - defensive
+        except Exception as exc:
             logger.warning(
                 "fetcher.cookie_parse_failed",
                 extra={"raw_preview": raw[:120], "error": str(exc)},
@@ -129,8 +127,6 @@ class Fetcher:
             raise FetchFailure(exc.__class__.__name__, str(exc) or repr(exc)) from exc
 
         headers = _headers_to_dict(response.headers)
-        # Set-Cookie is the one header that legitimately repeats; pull every
-        # occurrence so we don't lose cookies.
         set_cookie_values = response.headers.get_list("set-cookie", split_commas=False)
         cookies = _parse_set_cookie(set_cookie_values)
 

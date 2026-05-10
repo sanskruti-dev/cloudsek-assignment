@@ -1,8 +1,4 @@
 #!/usr/bin/env bash
-# Starts MongoDB + the FastAPI app on the local host (no Docker).
-#
-# Useful for environments where Docker isn't available. Logs and Mongo data
-# go to .run/ which is gitignored. Use scripts/stop-local.sh to shut down.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."

@@ -107,7 +107,6 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def _validation_exception_handler(
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
-        # Don't echo raw input back; just enumerate the field paths and codes.
         cleaned = [
             {"loc": err.get("loc"), "msg": err.get("msg"), "type": err.get("type")}
             for err in exc.errors()

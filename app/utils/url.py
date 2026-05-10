@@ -48,7 +48,6 @@ def normalize_url(url: str, *, allowed_schemes: frozenset[str] | None = None) ->
     host = parts.hostname.lower()
     port = parts.port
 
-    # Drop default ports and userinfo from the canonical key.
     if port is None or port == DEFAULT_PORTS.get(scheme):
         authority = host
         canonical_port: int | None = None
