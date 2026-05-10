@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "http-metadata-inventory"
+version = "1.0.0"
+description = "An asynchronous service that collects, stores, and serves HTTP metadata (headers, cookies, page source) for URLs."
+requires-python = ">=3.11"
+
+[tool.pytest.ini_options]
+minversion = "8.0"
+addopts = "-ra -q --strict-markers --strict-config"
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+filterwarnings = [
+    "ignore::DeprecationWarning:bson.*",
+    "ignore::DeprecationWarning:pymongo.*",
+]
+markers = [
+    "integration: marks integration tests that may require Mongo",
+]
+
+[tool.coverage.run]
+branch = true
+source = ["app"]
+omit = ["app/main.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+fail_under = 80
