@@ -103,6 +103,9 @@ pytest
 The test suite is hermetic: `mongomock-motor` substitutes for MongoDB and
 `respx` substitutes for httpx, so no network or database is needed.
 
+## Coverage Report
+<img width="1726" height="777" alt="image" src="https://github.com/user-attachments/assets/53500cf3-b697-432d-9e00-311f84cd192d" />
+
 ## Configuration
 
 The service reads four environment variables. Defaults are shown.
@@ -222,3 +225,5 @@ docker-compose.yml
   `models/`, `utils/`) with one responsibility per module.
 - **Scope:** static HTTP metadata only; no JavaScript execution or
   headless browser.
+
+
