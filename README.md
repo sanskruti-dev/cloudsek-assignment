@@ -226,4 +226,17 @@ docker-compose.yml
 - **Scope:** static HTTP metadata only; no JavaScript execution or
   headless browser.
 
+## API Responses
+
+POST : http://127.0.0.1:8000/api/v1/metadata 
+<img width="1469" height="994" alt="image" src="https://github.com/user-attachments/assets/7c3c9098-cdd6-4818-bf05-ce4eaa8f0979" />
+
+GET : http://127.0.0.1:8000/api/v1/metadata?url=https://google.com
+<img width="1477" height="936" alt="image" src="https://github.com/user-attachments/assets/639a7ad6-e3d5-4937-b670-b148699232a4" />
+
+GET : http://127.0.0.1:8000/api/v1/metadata?url=https://www.cloudsek.com/ (Cloudsek URL not in the metadata, so it is submitted to fetch in the background)
+<img width="1441" height="317" alt="image" src="https://github.com/user-attachments/assets/86c070e8-3c48-49d9-8bb2-a92273009b6c" />
+
+<img width="1470" height="921" alt="image" src="https://github.com/user-attachments/assets/7a2646cd-b2f4-464a-844a-1a573655ec11" />
+
 
