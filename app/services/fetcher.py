@@ -1,9 +1,4 @@
-"""Async HTTP fetcher used to collect headers, cookies, and page source.
-
-Uses `httpx.AsyncClient` for redirects, decoding, and connection pooling.
-Defends against runaway responses with a hard byte cap and configurable
-timeouts, and refuses private targets when the SSRF guard is on.
-"""
+"""Async HTTP fetcher: collects headers, cookies, and page source."""
 
 from __future__ import annotations
 
@@ -15,16 +10,18 @@ from typing import Iterable
 
 import httpx
 
-from app.core.config import Settings
 from app.models.schemas import CookieRecord
-from app.utils.url import ParsedURL, is_private_host
+from app.utils.url import ParsedURL
+
+TIMEOUT_SECONDS = 15.0
+MAX_REDIRECTS = 5
+MAX_BYTES = 5 * 1024 * 1024
+USER_AGENT = "HTTPMetadataInventory/1.0"
 
 logger = logging.getLogger(__name__)
 
 
 class FetchFailure(Exception):
-    """Raised by :class:`Fetcher` when a fetch can't be completed."""
-
     def __init__(self, kind: str, message: str) -> None:
         super().__init__(message)
         self.kind = kind
@@ -76,28 +73,18 @@ def _parse_set_cookie(values: Iterable[str]) -> list[CookieRecord]:
                     )
                 )
         except Exception as exc:
-            logger.warning(
-                "fetcher.cookie_parse_failed",
-                extra={"raw_preview": raw[:120], "error": str(exc)},
-            )
+            logger.warning("cookie parse failed: %s", exc)
     return records
 
 
 class Fetcher:
-    def __init__(
-        self,
-        settings: Settings,
-        *,
-        client: httpx.AsyncClient | None = None,
-    ) -> None:
-        self._settings = settings
+    def __init__(self, *, client: httpx.AsyncClient | None = None) -> None:
         self._owns_client = client is None
         self._client = client or httpx.AsyncClient(
-            timeout=httpx.Timeout(settings.fetch_timeout_s),
+            timeout=httpx.Timeout(TIMEOUT_SECONDS),
             follow_redirects=True,
-            max_redirects=settings.fetch_max_redirects,
-            headers={"User-Agent": settings.fetch_user_agent},
-            http2=False,
+            max_redirects=MAX_REDIRECTS,
+            headers={"User-Agent": USER_AGENT},
         )
 
     async def aclose(self) -> None:
@@ -105,20 +92,9 @@ class Fetcher:
             await self._client.aclose()
 
     async def fetch(self, parsed: ParsedURL) -> FetchResult:
-        if (
-            self._settings.block_private_networks
-            and is_private_host(parsed.host)
-        ):
-            raise FetchFailure(
-                "ssrf_blocked",
-                f"Refusing to fetch private/loopback host {parsed.host!r}",
-            )
-
         try:
             async with self._client.stream("GET", parsed.normalized) as response:
-                page_source, content_length, truncated = await self._read_capped_body(
-                    response
-                )
+                page_source, content_length, truncated = await self._read_capped_body(response)
         except httpx.TimeoutException as exc:
             raise FetchFailure("timeout", str(exc) or repr(exc)) from exc
         except httpx.TooManyRedirects as exc:
@@ -142,22 +118,13 @@ class Fetcher:
             fetched_at=datetime.now(timezone.utc),
         )
 
-    async def _read_capped_body(
-        self, response: httpx.Response
-    ) -> tuple[str, int, bool]:
-        """Stream the body up to ``fetch_max_bytes`` and stop.
-
-        Returns ``(text, byte_count, truncated)``. Decoding uses the encoding
-        httpx infers, with replacement on bad bytes so we never raise on a
-        broken charset.
-        """
-        cap = self._settings.fetch_max_bytes
+    async def _read_capped_body(self, response: httpx.Response) -> tuple[str, int, bool]:
         chunks: list[bytes] = []
         total = 0
         truncated = False
         async for chunk in response.aiter_bytes():
-            if total + len(chunk) > cap:
-                remaining = cap - total
+            if total + len(chunk) > MAX_BYTES:
+                remaining = MAX_BYTES - total
                 if remaining > 0:
                     chunks.append(chunk[:remaining])
                     total += remaining

@@ -54,14 +54,9 @@ def test_normalize_rejects_missing_host() -> None:
         normalize_url("https:///path")
 
 
-def test_normalize_enforces_scheme_allowlist() -> None:
-    allowed = frozenset({"https"})
+def test_normalize_rejects_unsupported_scheme() -> None:
     with pytest.raises(InvalidURLError):
-        normalize_url("http://example.com/", allowed_schemes=allowed)
-    assert (
-        normalize_url("https://example.com/", allowed_schemes=allowed).normalized
-        == "https://example.com/"
-    )
+        normalize_url("ftp://example.com/")
 
 
 def test_normalize_is_idempotent() -> None:

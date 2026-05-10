@@ -1,4 +1,4 @@
-"""Metadata endpoints: synchronous POST and cache-aware GET."""
+"""POST /metadata (synchronous) and GET /metadata (cache-aware)."""
 
 from __future__ import annotations
 

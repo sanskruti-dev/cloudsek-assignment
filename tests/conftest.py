@@ -1,7 +1,7 @@
 """Shared pytest fixtures.
 
-The suite is hermetic: ``mongomock-motor`` replaces MongoDB and ``respx``
-replaces httpx, so no external services are needed to run the tests.
+The suite uses ``mongomock-motor`` and ``respx`` so no external services
+need to be running.
 """
 
 from __future__ import annotations
@@ -17,7 +17,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from mongomock_motor import AsyncMongoMockClient
 
-from app.api.routes import health as health_routes
 from app.api.routes import metadata as metadata_routes
 from app.core.config import Settings
 from app.db.repository import MetadataRepository
@@ -29,19 +28,10 @@ from app.services.worker import BackgroundTaskScheduler
 @pytest.fixture
 def settings() -> Settings:
     return Settings(
-        app_env="test",
-        log_level="WARNING",
         mongo_uri="mongodb://localhost:27017",
         mongo_db="metadata_inventory_test",
         mongo_collection="url_metadata_test",
-        mongo_startup_retry_attempts=1,
-        mongo_startup_retry_delay_s=0.0,
-        fetch_timeout_s=2.0,
-        fetch_max_redirects=2,
-        fetch_max_bytes=64 * 1024,
-        fetch_user_agent="test-agent/1.0",
-        block_private_networks=False,
-        ALLOWED_SCHEMES="http,https",
+        log_level="WARNING",
     )
 
 
@@ -76,7 +66,6 @@ async def httpx_client(respx_mock: respx.MockRouter) -> AsyncIterator[httpx.Asyn
         timeout=httpx.Timeout(2.0),
         follow_redirects=True,
         max_redirects=3,
-        headers={"User-Agent": "test-agent/1.0"},
     )
     try:
         yield client
@@ -85,10 +74,8 @@ async def httpx_client(respx_mock: respx.MockRouter) -> AsyncIterator[httpx.Asyn
 
 
 @pytest_asyncio.fixture
-async def fetcher(
-    settings: Settings, httpx_client: httpx.AsyncClient
-) -> AsyncIterator[Fetcher]:
-    f = Fetcher(settings, client=httpx_client)
+async def fetcher(httpx_client: httpx.AsyncClient) -> AsyncIterator[Fetcher]:
+    f = Fetcher(client=httpx_client)
     try:
         yield f
     finally:
@@ -102,13 +89,11 @@ def scheduler() -> BackgroundTaskScheduler:
 
 @pytest_asyncio.fixture
 async def service(
-    settings: Settings,
     repository: MetadataRepository,
     fetcher: Fetcher,
     scheduler: BackgroundTaskScheduler,
 ) -> MetadataService:
     return MetadataService(
-        settings=settings,
         repository=repository,
         fetcher=fetcher,
         schedule=lambda factory, name: scheduler.schedule(factory, name),
@@ -124,14 +109,11 @@ def app(
     service: MetadataService,
     mongo_client: AsyncMongoMockClient,
 ) -> FastAPI:
-    """Build a FastAPI app with state pre-wired so we skip the real lifespan."""
-    test_app = FastAPI(title="HTTP Metadata Inventory (test)")
-    test_app.include_router(metadata_routes.router, prefix=settings.api_prefix)
-    test_app.include_router(health_routes.router)
+    test_app = FastAPI()
+    test_app.include_router(metadata_routes.router)
 
     test_app.state.settings = settings
     test_app.state.mongo_client = mongo_client
-    test_app.state.database = mongo_client[settings.mongo_db]
     test_app.state.repository = repository
     test_app.state.fetcher = fetcher
     test_app.state.scheduler = scheduler

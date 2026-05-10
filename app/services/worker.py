@@ -1,13 +1,4 @@
-"""In-process background task scheduler.
-
-Tasks run on the same event loop as the API, so the response is returned
-immediately without spawning a thread or contacting an external broker. The
-scheduler tracks tasks so that shutdown can wait for them to finish.
-
-Swap this for an arq/Celery/RQ producer if you need to scale horizontally;
-the rest of the service depends only on the ``schedule(coro_factory, name)``
-shape.
-"""
+"""In-process background task scheduler built on ``asyncio.create_task``."""
 
 from __future__ import annotations
 
@@ -43,11 +34,11 @@ class BackgroundTaskScheduler:
     ) -> None:
         try:
             await coro_factory()
-        except Exception: 
-            logger.exception("background_task.failed", extra={"task": name})
+        except Exception:
+            logger.exception("background task %s failed", name)
 
     async def drain(self, timeout: float = 30.0) -> None:
-        """Wait for all currently scheduled tasks, bounded by ``timeout``."""
+        """Wait for all in-flight tasks, bounded by ``timeout``."""
         if not self._tasks:
             return
         in_flight = list(self._tasks)
@@ -57,10 +48,7 @@ class BackgroundTaskScheduler:
                 timeout=timeout,
             )
         except asyncio.TimeoutError:
-            logger.warning(
-                "background_task.drain_timeout",
-                extra={"pending": self.pending, "timeout_s": timeout},
-            )
+            logger.warning("drain timed out with %d task(s) pending", self.pending)
             for task in in_flight:
                 if not task.done():
                     task.cancel()

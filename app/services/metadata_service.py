@@ -1,9 +1,8 @@
-"""Application service. Orchestrates fetcher + repository.
+"""Application service. Orchestrates fetcher and repository.
 
-Rules:
-  POST     -> synchronous fetch + persist + return
-  GET hit  -> return as-is
-  GET miss -> reserve a placeholder atomically, schedule async work, return 202
+POST     -> synchronous fetch + persist + return
+GET hit  -> return as-is
+GET miss -> reserve a placeholder atomically, schedule async work, return 202
 """
 
 from __future__ import annotations
@@ -12,7 +11,6 @@ import logging
 from datetime import datetime, timezone
 from typing import Awaitable, Callable
 
-from app.core.config import Settings
 from app.db.repository import MetadataRepository
 from app.models.schemas import (
     FetchError,
@@ -58,21 +56,15 @@ def _build_record(
 
 
 class MetadataService:
-    """Orchestrates fetching and storing metadata records.
-
-    The ``schedule`` callable is injected by the API layer so the service
-    has no direct dependency on FastAPI internals.
-    """
+    """Coordinates fetching and persistence."""
 
     def __init__(
         self,
         *,
-        settings: Settings,
         repository: MetadataRepository,
         fetcher: Fetcher,
         schedule: ScheduleCallable,
     ) -> None:
-        self._settings = settings
         self._repo = repository
         self._fetcher = fetcher
         self._schedule = schedule
@@ -87,23 +79,15 @@ class MetadataService:
 
         record = _build_record(parsed, result)
         stored = await self._repo.store_complete(record)
-        logger.info(
-            "metadata.post.stored",
-            extra={
-                "normalized_url": parsed.normalized,
-                "status_code": result.status_code,
-                "truncated": result.truncated,
-                "bytes": result.content_length,
-            },
-        )
+        logger.info("stored metadata for %s (%d)", parsed.normalized, result.status_code)
         return stored
 
     async def get_or_schedule(self, raw_url: str) -> tuple[MetadataRecord, bool]:
         """Return ``(record, served_from_cache)``.
 
-        ``served_from_cache`` is True when the record is the final answer
-        (status COMPLETE or FAILED). If False, the record is a pending
-        placeholder and a worker is in flight.
+        ``served_from_cache`` is True when the record is final (COMPLETE or
+        FAILED). If False, the record is a pending placeholder and a worker
+        is running in the background.
         """
         parsed = self._parse(raw_url)
 
@@ -127,26 +111,21 @@ class MetadataService:
 
     def _parse(self, raw_url: str) -> ParsedURL:
         try:
-            return normalize_url(raw_url, allowed_schemes=self._settings.allowed_schemes)
+            return normalize_url(raw_url)
         except InvalidURLError:
             raise
-        except Exception as exc: 
+        except Exception as exc:
             raise InvalidURLError(f"Could not parse URL: {exc}") from exc
 
     async def _collect_in_background(self, parsed: ParsedURL) -> None:
-        logger.info(
-            "metadata.worker.start", extra={"normalized_url": parsed.normalized}
-        )
+        logger.info("background fetch start: %s", parsed.normalized)
         try:
             result = await self._fetcher.fetch(parsed)
         except FetchFailure as exc:
             await self._record_failure(parsed, exc)
             return
-        except Exception as exc: 
-            logger.exception(
-                "metadata.worker.unexpected_error",
-                extra={"normalized_url": parsed.normalized},
-            )
+        except Exception as exc:
+            logger.exception("unexpected error fetching %s", parsed.normalized)
             await self._record_failure(
                 parsed,
                 FetchFailure("unexpected", str(exc) or repr(exc)),
@@ -160,29 +139,13 @@ class MetadataService:
             created_at=existing.created_at if existing else None,
         )
         await self._repo.store_complete(record)
-        logger.info(
-            "metadata.worker.done",
-            extra={
-                "normalized_url": parsed.normalized,
-                "status_code": result.status_code,
-                "truncated": result.truncated,
-            },
-        )
+        logger.info("background fetch done: %s (%d)", parsed.normalized, result.status_code)
 
-    async def _record_failure(
-        self, parsed: ParsedURL, exc: FetchFailure
-    ) -> None:
+    async def _record_failure(self, parsed: ParsedURL, exc: FetchFailure) -> None:
         await self._repo.reserve_pending(
             url=parsed.original, normalized_url=parsed.normalized
         )
         await self._repo.mark_failed(
             parsed.normalized, FetchError(type=exc.kind, message=exc.message)
         )
-        logger.warning(
-            "metadata.fetch.failed",
-            extra={
-                "normalized_url": parsed.normalized,
-                "kind": exc.kind,
-                "error": exc.message,
-            },
-        )
+        logger.warning("fetch failed for %s: %s/%s", parsed.normalized, exc.kind, exc.message)

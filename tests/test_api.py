@@ -5,7 +5,6 @@ from __future__ import annotations
 import asyncio
 
 import httpx
-import pytest
 import respx
 from fastapi.testclient import TestClient
 
@@ -25,9 +24,7 @@ def test_post_creates_complete_record(
         )
     )
 
-    response = client.post(
-        "/api/v1/metadata", json={"url": "https://example.com/"}
-    )
+    response = client.post("/metadata", json={"url": "https://example.com/"})
     assert response.status_code == 201
     body = response.json()
     assert body["status"] == "complete"
@@ -43,22 +40,20 @@ def test_post_returns_502_on_fetch_failure(
     respx_mock.get("https://broken.example/").mock(
         side_effect=httpx.ConnectError("dns")
     )
-    response = client.post(
-        "/api/v1/metadata", json={"url": "https://broken.example/"}
-    )
+    response = client.post("/metadata", json={"url": "https://broken.example/"})
     assert response.status_code == 502
     body = response.json()
     assert "kind" in body["detail"]
 
 
 def test_post_rejects_invalid_url(client: TestClient) -> None:
-    response = client.post("/api/v1/metadata", json={"url": "not-a-url"})
+    response = client.post("/metadata", json={"url": "not-a-url"})
     assert response.status_code == 422
 
 
 def test_post_rejects_extra_fields(client: TestClient) -> None:
     response = client.post(
-        "/api/v1/metadata", json={"url": "https://example.com/", "evil": "yes"}
+        "/metadata", json={"url": "https://example.com/", "evil": "yes"}
     )
     assert response.status_code == 422
 
@@ -71,15 +66,10 @@ def test_get_cache_hit_returns_200(
     respx_mock.get("https://example.com/cache").mock(
         return_value=httpx.Response(200, content=example_html.encode())
     )
-    # Prime the cache.
-    primed = client.post(
-        "/api/v1/metadata", json={"url": "https://example.com/cache"}
-    )
+    primed = client.post("/metadata", json={"url": "https://example.com/cache"})
     assert primed.status_code == 201
 
-    response = client.get(
-        "/api/v1/metadata", params={"url": "https://example.com/cache"}
-    )
+    response = client.get("/metadata", params={"url": "https://example.com/cache"})
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "complete"
@@ -96,9 +86,7 @@ def test_get_cache_miss_returns_202_and_schedules_worker(
         return_value=httpx.Response(200, content=example_html.encode())
     )
 
-    response = client.get(
-        "/api/v1/metadata", params={"url": "https://miss.example/"}
-    )
+    response = client.get("/metadata", params={"url": "https://miss.example/"})
     assert response.status_code == 202
     body = response.json()
     assert body["status"] == "pending"
@@ -107,36 +95,23 @@ def test_get_cache_miss_returns_202_and_schedules_worker(
     scheduler: BackgroundTaskScheduler = app.state.scheduler
     asyncio.get_event_loop().run_until_complete(scheduler.drain(timeout=5.0))
 
-    response = client.get(
-        "/api/v1/metadata", params={"url": "https://miss.example/"}
-    )
+    response = client.get("/metadata", params={"url": "https://miss.example/"})
     assert response.status_code == 200
     assert response.json()["status"] == "complete"
 
 
 def test_get_invalid_url_returns_400(client: TestClient) -> None:
-    response = client.get("/api/v1/metadata", params={"url": "not-a-url"})
+    response = client.get("/metadata", params={"url": "not-a-url"})
     assert response.status_code == 400
 
 
-def test_get_disallowed_scheme_returns_400(client: TestClient) -> None:
-    response = client.get(
-        "/api/v1/metadata", params={"url": "ftp://example.com/"}
-    )
+def test_get_unsupported_scheme_returns_400(client: TestClient) -> None:
+    response = client.get("/metadata", params={"url": "ftp://example.com/"})
     assert response.status_code == 400
-
-
-def test_health_check_reports_ok(client: TestClient) -> None:
-    response = client.get("/health-check")
-    assert response.status_code == 200
-    body = response.json()
-    assert body["app"]
-    assert body["mongo"] in {"ok", "uninitialised"}
 
 
 def test_openapi_schema_present(client: TestClient) -> None:
     response = client.get("/openapi.json")
     assert response.status_code == 200
     schema = response.json()
-    assert "/api/v1/metadata" in schema["paths"]
-    assert "/health-check" in schema["paths"]
+    assert "/metadata" in schema["paths"]

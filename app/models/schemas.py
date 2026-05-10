@@ -1,4 +1,4 @@
-"""Pydantic models used by the API and the persistence layer."""
+"""Pydantic models for the API and persistence layer."""
 
 from __future__ import annotations
 
@@ -41,7 +41,7 @@ class FetchError(BaseModel):
 
 
 class MetadataCreateRequest(BaseModel):
-    """Body of `POST /metadata`. Only the URL is accepted."""
+    """Request body for ``POST /metadata``."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -53,11 +53,7 @@ class MetadataCreateRequest(BaseModel):
 
 
 class MetadataRecord(BaseModel):
-    """The persisted document, also returned to API clients.
-
-    `normalized_url` is the lookup key. `url` keeps the original user-supplied
-    form for traceability.
-    """
+    """Persisted document, also returned by the API."""
 
     model_config = ConfigDict(extra="ignore", populate_by_name=True)
 
@@ -79,7 +75,7 @@ class MetadataRecord(BaseModel):
 
 
 class MetadataAcceptedResponse(BaseModel):
-    """Body returned with `202 Accepted` when the record is still being collected."""
+    """Body returned with ``202 Accepted`` while collection is in progress."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -88,15 +84,8 @@ class MetadataAcceptedResponse(BaseModel):
     status: MetadataStatus
     detail: str = (
         "Metadata is being collected in the background. "
-        "Retry the GET in a few moments to receive the full record."
+        "Retry GET in a few moments to receive the full record."
     )
-
-
-class HealthResponse(BaseModel):
-    status: str
-    app: str
-    version: str
-    mongo: str
 
 
 def fetched_record_to_dict(record: MetadataRecord) -> dict[str, Any]:
